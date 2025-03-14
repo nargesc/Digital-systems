@@ -1,0 +1,60 @@
+from machine import Pin
+import time
+
+# Define inputs
+button = Pin(7, Pin.IN, Pin.PULL_UP)  # SW2 (0 = pressed)
+alarm_signal = Pin(9, Pin.IN, Pin.PULL_UP)  # SW0 (0 = alarm active)
+
+# Define outputs
+red_light = Pin(22, Pin.OUT)  # LED1
+siren = Pin(20, Pin.OUT)  # LED3
+
+# States
+IDLE = 0         # S0: OFF
+ACTIVE_ALARM = 1 # S1: Alarm Active
+ACK_ALARM = 2    # S2: Acknowledge
+BLINKING = 3     # S3: Red Light Blinking (Alarm still active)
+WAIT_ACK = 4     # S4: Red Light Solid (Alarm deactivated before acknowledgment)
+
+# Initial state
+state = IDLE
+blink_timer = 0
+
+while True:
+    if state == IDLE:
+        red_light.value(0)
+        siren.value(0)
+        if alarm_signal.value() == 0:  # Alarm active
+            state = ACTIVE_ALARM
+
+    elif state == ACTIVE_ALARM:
+        red_light.value(1)
+        siren.value(1)
+        if button.value() == 0:  # Button pressed (acknowledge)
+            state = ACK_ALARM
+        elif alarm_signal.value() == 1:  # Alarm deactivated before acknowledgment
+            state = WAIT_ACK
+
+    elif state == ACK_ALARM:
+        siren.value(0)  # Turn off siren
+        if alarm_signal.value() == 0:  # If alarm is still active
+            state = BLINKING  # Move to blinking state
+        else:
+            state = WAIT_ACK  # If alarm deactivated, move to waiting acknowledgment
+
+    elif state == BLINKING:
+        siren.value(0)
+        # Blinking logic
+        if time.ticks_ms() - blink_timer > 500:  # Toggle every 500ms
+            red_light.value(not red_light.value())
+            blink_timer = time.ticks_ms()
+        if alarm_signal.value() == 1:  # Alarm deactivated
+            state = WAIT_ACK
+
+    elif state == WAIT_ACK:
+        siren.value(0)
+        red_light.value(1)  # Keep red light ON
+        if button.value() == 0:  # Button pressed to acknowledge final state
+            state = IDLE  # Return to OFF state
+
+    time.sleep(0.1)  # Small delay for stability
