@@ -12,46 +12,44 @@ siren = Pin(20, Pin.OUT)  # LED3
 # States
 IDLE = 0         # S0: OFF
 ACTIVE_ALARM = 1 # S1: Alarm Active
-ACK_ALARM = 2    # S2: Acknowledge
+ACK_ALARM = 2    # S2: Acknowledge (Stopping Siren)
 BLINKING = 3     # S3: Red Light Blinking (Alarm still active)
-WAIT_ACK = 4     # S4: Red Light Solid (Alarm deactivated before acknowledgment)
+SOLID_RED = 4    # S4: Red Light Solid (Alarm deactivated before acknowledgment)
 
 # Initial state
 state = IDLE
-blink_timer = 0
+blink_timer = time.ticks_ms()
 
 while True:
-    if state == IDLE:
+    if state == IDLE:  # S0: OFF
         red_light.value(0)
         siren.value(0)
-        if alarm_signal.value() == 0:  # Alarm active
+        if alarm_signal.value() == 0:  # Alarm activated
             state = ACTIVE_ALARM
 
-    elif state == ACTIVE_ALARM:
+    elif state == ACTIVE_ALARM:  # S1: Alarm Active
         red_light.value(1)
         siren.value(1)
         if button.value() == 0:  # Button pressed (acknowledge)
             state = ACK_ALARM
-        elif alarm_signal.value() == 1:  # Alarm deactivated before acknowledgment
-            state = WAIT_ACK
 
-    elif state == ACK_ALARM:
+    elif state == ACK_ALARM:  # S2: Acknowledge
         siren.value(0)  # Turn off siren
-        if alarm_signal.value() == 0:  # If alarm is still active
-            state = BLINKING  # Move to blinking state
+        if alarm_signal.value() == 0:  # Alarm still active
+            state = BLINKING
         else:
-            state = WAIT_ACK  # If alarm deactivated, move to waiting acknowledgment
+            state = SOLID_RED  # Move to S4 if alarm deactivated
 
-    elif state == BLINKING:
+    elif state == BLINKING:  # S3: LED1 Blinking
         siren.value(0)
         # Blinking logic
         if time.ticks_ms() - blink_timer > 500:  # Toggle every 500ms
             red_light.value(not red_light.value())
             blink_timer = time.ticks_ms()
         if alarm_signal.value() == 1:  # Alarm deactivated
-            state = WAIT_ACK
+            state = SOLID_RED
 
-    elif state == WAIT_ACK:
+    elif state == SOLID_RED:  # S4: LED1 Solid
         siren.value(0)
         red_light.value(1)  # Keep red light ON
         if button.value() == 0:  # Button pressed to acknowledge final state
